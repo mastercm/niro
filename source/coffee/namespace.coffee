@@ -1,0 +1,2 @@
+# the niro namespace
+Niro = {}
