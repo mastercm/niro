@@ -75,26 +75,33 @@ Niro.Common = (function(exports, global) {
     return array;
   };
   exports.extend = function() {
-    var destination, index, position, property, source, sources, value, _i, _len;
+    var destination, property, source, sources, value, _i, _len;
     destination = arguments[0], sources = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
     if (!(this.isObject(destination) || this.isFunction(destination))) {
-      throw Error('extend expected first arguments to be an Object or FunctionFunctino, type was ' + typeof destination);
+      throw Error('extend expected first argument (destination) to be an Object or Function, type was ' + typeof destination);
     }
-    for (index = _i = 0, _len = sources.length; _i < _len; index = ++_i) {
-      source = sources[index];
-      if (!(this.isObject(source) || this.isFunction(source))) {
-        continue;
+    if (sources.length > 1) {
+      for (_i = 0, _len = sources.length; _i < _len; _i++) {
+        source = sources[_i];
+        _.extend(destination, source);
       }
+    } else if (!(_.isObject(source = sources[0]) || _.isFunction(source))) {
+      return destination;
+    } else {
       for (property in source) {
         if (!__hasProp.call(source, property)) continue;
         value = source[property];
-        if (this.isDictionary(value) && this.isObject(position = destination[property])) {
-          this.extend(position, value);
+        if (_.isObject(value) && !_.isCircular(value)) {
+          if (destination[property] == null) {
+            destination[property] = _.isArray(value) ? [] : {};
+          }
+          _.extend(destination[property], value);
         } else {
           destination[property] = value;
         }
       }
     }
+    return destination;
     return destination;
   };
   exports.clone = function(object) {
@@ -114,7 +121,7 @@ Niro.Common = (function(exports, global) {
     return instance;
   };
   exports.search = function(object, handler, startPath) {
-    var property, value, _results;
+    var path, property, value, _results;
     if (!this.isObject(object)) {
       throw Error("search expected first argument (object) to be a Object, type was " + (typeof object));
     }
@@ -128,11 +135,12 @@ Niro.Common = (function(exports, global) {
     for (property in object) {
       if (!__hasProp.call(object, property)) continue;
       value = object[property];
+      path = _.joinPath(startPath, property);
       if (property !== 'length') {
-        handler(value, property, object);
+        handler(value, property, object, path);
       }
       if (this.isArray(value) || this.isObject(value) && !this.isCircular(value)) {
-        _results.push(this.search(value, handler));
+        _results.push(this.search(value, handler, path));
       } else {
         _results.push(void 0);
       }
@@ -204,7 +212,28 @@ Niro.Common = (function(exports, global) {
       path: path
     };
   };
+  exports.sanitiseClassName = function(name) {
+    var parts;
+    parts = name.split(/-|_|\s/g).map(function(it) {
+      return it[0].toUpperCase() + it.substr(1);
+    });
+    return parts.join('');
+  };
+  exports.defineStealthProperty = function(object, property, value) {
+    return Object.defineProperty(object, property, {
+      value: value,
+      writable: false,
+      enumerable: false,
+      configurable: false
+    });
+  };
   exports.delay = function(ms, handler) {
+    if (handler == null) {
+      handler = ms;
+    }
+    if (!_.isBoolean(ms)) {
+      ms = 0;
+    }
     return global.setTimeout(handler, ms);
   };
   exports.interval = function(ms, handler) {

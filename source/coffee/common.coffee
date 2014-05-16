@@ -104,24 +104,29 @@ Niro.Common = do (exports = {}, global = window) ->
 
       # ensture `destination` is object
       unless @isObject(destination) or @isFunction(destination)
-         throw Error 'extend expected first arguments to be an Object or FunctionFunctino, type was ' + typeof destination
+         throw Error 'extend expected first argument (destination) to be an Object or Function, type was ' + typeof destination
 
-      # loop through sources
-      for source, index in sources
 
-         unless @isObject(source) or @isFunction(source)
-            continue
+      if sources.length > 1
+         _.extend(destination, source) for source in sources
+      else unless _.isObject(source = sources[0]) or _.isFunction(source)
+         return destination
+      else 
 
-         # loop through source properties
          for own property, value of source
-
-            # if values are objects, re-extend
-            if @isDictionary(value) and @isObject(position = destination[property])
-               @extend(position, value)
-
-            # else assign value
-            else 
+            if _.isObject(value) and not _.isCircular(value)
+               destination[property] ?= if _.isArray(value) then [] else {}
+               _.extend(destination[property], value)
+            else
                destination[property] = value
+
+
+      return destination
+
+
+
+
+
 
 
       # return modified destination
@@ -167,13 +172,16 @@ Niro.Common = do (exports = {}, global = window) ->
       # loop object properties
       for own property, value of object 
 
+         # get property path 
+         path = _.joinPath(startPath, property)
+         
          # call handler
          unless property is 'length'
-            handler(value, property, object)
+            handler(value, property, object, path)
 
          # if is object then continue search
          if @isArray(value) or @isObject(value) and not @isCircular(value)
-            @search(value, handler)
+            @search(value, handler, path)
 
    # split string path into parts
    exports.splitPath = (path) ->
@@ -263,9 +271,25 @@ Niro.Common = do (exports = {}, global = window) ->
       return {container, property, containerPath, propertyPath, path}
 
 
+
+   # make class names safe for use
+   exports.sanitiseClassName = (name) ->
+      parts = name.split(/-|_|\s/g).map (it) ->
+         it[0].toUpperCase() + it.substr(1)
+
+      return parts.join('')
+
+
+   # define a stealth property
+   exports.defineStealthProperty = (object, property, value) ->
+      Object.defineProperty object, property, {value, writable: no, enumerable: no, configurable: no}
+
+
+
    # Timer's section
    # setTimeout alias
-   exports.delay = (ms, handler) ->
+   exports.delay = (ms, handler = ms) ->
+      ms = 0 unless _.isBoolean(ms)
       global.setTimeout(handler, ms)
 
    # setInterval alias
